@@ -1,15 +1,15 @@
 AutoTSA
 =======
 
-AutoTSA is an AutoML toolkit for univariate time-series forecasting with optional exogenous regressors. It builds lag/rolling features, runs a compact model search (tree ensembles, linear models, Gaussian Process; optional LightGBM, Prophet, SARIMA, GARCH, GRU), scores via rolling-origin validation, and returns the best model plus metrics. A Streamlit GUI and CLI are included for fast experimentation.
+AutoTSA is an AutoML toolkit for univariate time-series forecasting with optional exogenous regressors. It builds lag/rolling features, searches a compact model zoo (tree ensembles, linear models, Gaussian Process; optional LightGBM, Prophet, SARIMA, GARCH, GRU), scores via rolling-origin validation, and returns the best model plus metrics. A Streamlit GUI and CLI are included for fast experimentation.
 
 ## Highlights
 - Rolling-origin validation with configurable holdout (batch or stepwise) to reduce leakage.
 - Automatic feature engineering: target lags, rolling statistics, datetime encodings, holiday indicators, and exogenous lags.
-- Model zoo: Gradient Boosting, Random Forest, Ridge/ElasticNet, Gaussian Process; optional LightGBM, Prophet, SARIMA, GARCH, GRU (pytorch); TFT currently disabled.
+- Model zoo: Gradient Boosting, Random Forest, Ridge/ElasticNet, Gaussian Process; optional LightGBM, Prophet, SARIMA, GARCH, GRU (torch); TFT currently disabled.
 - Deterministic searches with random seeds; Optuna hyperparameter tuning (optional).
 - Exogenous forecasting in the GUI: hold-flat or project each exog forward via a small Gradient Boosting forecaster on its own lags/rolls.
-- Exportable search history, holdout plots (CLI), and a modern Streamlit interface.
+- Exportable search history, holdout plots (CLI), cross-val series, and a modern Streamlit interface.
 
 ## Installation
 ```bash
@@ -23,6 +23,27 @@ pip install -r requirements.txt
 #   pip install torch pytorch-lightning pytorch-forecasting  # for GRU/TFT (TFT disabled by default)
 #   pip install holidays  # for holiday features
 ```
+
+## Streamlit GUI (AutoTSA Studio)
+```bash
+streamlit run src/auto_tsa/gui.py
+```
+What it delivers
+- Upload a CSV, AutoTSA suggests timestamp/target columns, and shows a preview of the first 20 rows.
+- Choose horizon length, how much history to plot, and how many latest rows to use for training (focus on recent behavior).
+- Toggle models (GBR, RF, Ridge/ElasticNet, LightGBM, Prophet, SARIMA, GARCH, GRU when deps available; TFT hidden without CUDA).
+- Exogenous controls: pick regressors, optionally project each forward with a small GBR forecaster, or keep them flat.
+- Frequency override box to guarantee regular spacing for multi-step forecasts.
+- Add holiday indicators, enable or disable Optuna tuning (auto-disabled for TFT), set Optuna trials.
+- Interactive charts: forecast line with history window, holdout plot toggle, rolling CV plot toggle.
+- Download the trained pipeline as `.joblib` and view the forecast table inline.
+
+GUI walkthrough
+- Drop a CSV in the sidebar; set `Frequency (optional)` (e.g., `D`, `H`, `MS`) if inference is shaky.
+- Pick timestamp and target columns; optionally add exogenous columns.
+- Set prediction steps and history window; choose models and toggles (holiday features, exog projection, Optuna).
+- Click **Train & Forecast** to see metrics, plots, and download the model.
+- Use the holdout toggle to inspect leakage-safe performance; use the CV toggle to visualize rolling-split predictions.
 
 ## Quickstart (CLI)
 ```bash
@@ -43,6 +64,13 @@ python -m auto_tsa.cli \
 - `--predict-next` prints a one-step forecast using the fitted model.
 - `--plot-holdout path.png` saves an actual vs. predicted plot for the holdout period.
 - `--use-optuna --optuna-trials N` enables Optuna tuning if installed.
+- `--holdout-stepwise` enforces sequential one-step evaluation on the holdout slice to avoid multi-step leakage.
+
+Common CLI recipes
+- Minimal: `python -m auto_tsa.cli --data df.csv --target y --timestamp ds`
+- Exogenous: add `--exog reg1,reg2 --exog-lags 0,1,2`
+- Faster search: lower `--trials` and `--splits`; set `--models ridge,elasticnet`
+- Traditional stats: install extras then use `--models sarima,prophet,garch`
 
 ## Python API
 ```python
@@ -66,31 +94,27 @@ cfg = AutoTSAConfig(
     use_optuna=False,
 )
 automl = AutoTSA(cfg).fit(df)
-forecast_one_step = automl.predict_next(df)
+next_step = automl.predict_next(df)
 ```
+- Multi-step: ensure `freq` is set or inferred, then call `predict_next` repeatedly with the growing history (GUI automates this).
+- Cross-val series for plotting: `cv_df, cv_score = automl.crossval_series(df)`
 
-## Streamlit GUI
-```bash
-streamlit run src/auto_tsa/gui.py
-```
-What it does:
-- Upload a CSV, pick timestamp/target/exogenous columns, horizon, and models.
-- Optional toggles: project exogenous forward (per-exog GBR forecaster), add holiday features, enable Optuna (when supported).
-- Shows data preview, best model/metric, interactive forecast plot, and forecast table.
+## Data and feature engineering
+- Timestamp column must parse to datetime; target must be numeric (coerced to float with interpolation for gaps).
+- Lags/rolling windows build autoregressive features; datetime encodings add calendar signals; holiday indicators require `holidays`.
+- Exogenous columns are lagged; GUI can forecast each exog forward with Gradient Boosting to avoid flat-hold assumptions.
+- Holdout uses rolling-origin; stepwise holdout predicts sequentially using realized history to reduce multi-step leakage.
+
+## Model catalog
+- Built-in: Gradient Boosting, Random Forest, Ridge, ElasticNet, Gaussian Process.
+- Optional extras (install first): LightGBM, Prophet, SARIMA (statsmodels), GARCH (arch), GRU (torch stack). TFT is currently disabled.
+- Deterministic seeds; Optuna tuning available for supported models.
 
 ## Configuration notes
 - Frequency: inferred when possible; provide `freq` explicitly for reliable multi-step forecasts.
 - Exogenous handling: exogenous columns are lagged by default; the GUI can forecast exogs forward, otherwise they are held flat.
-- Holdout strategy: `holdout_fraction` controls the split; `holdout_stepwise` evaluates one-step-ahead rolling predictions to avoid multi-step leakage.
+- Holdout strategy: `holdout_fraction` controls the split; `holdout_stepwise` evaluates one-step-ahead rolling predictions.
 - Scaling: enabled by default; disable via `scale_features=False` (API) or `--no-scale` (CLI).
-
-## Optional dependencies
-- LightGBM (`lightgbm`) for faster tree boosting.
-- Prophet (`prophet`) for additive/multiplicative seasonality with holidays.
-- SARIMA (`statsmodels`) for classic seasonal ARIMA.
-- GARCH (`arch`) for volatility-aware autoregressive mean/variance modeling.
-- Holidays (`holidays`) for country-specific holiday indicators.
-- Torch stack for GRU; TFT is currently disabled in the catalog.
 
 ## Development
 - Lint/format: not enforced; keep changes minimal and documented.
