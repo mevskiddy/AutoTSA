@@ -38,12 +38,13 @@ What it delivers
 - Interactive charts: forecast line with history window, holdout plot toggle, rolling CV plot toggle.
 - Download the trained pipeline as `.joblib` and view the forecast table inline.
 
-GUI walkthrough
-- Drop a CSV in the sidebar; set `Frequency (optional)` (e.g., `D`, `H`, `MS`) if inference is shaky.
-- Pick timestamp and target columns; optionally add exogenous columns.
-- Set prediction steps and history window; choose models and toggles (holiday features, exog projection, Optuna).
-- Click **Train & Forecast** to see metrics, plots, and download the model.
-- Use the holdout toggle to inspect leakage-safe performance; use the CV toggle to visualize rolling-split predictions.
+Some GUI Screenshots
+
+<img width="1030" height="570" alt="autotsa1" src="https://github.com/user-attachments/assets/a7fc0407-473d-4612-a0d4-b420087a097e" />
+<img width="1025" height="559" alt="autotsa2" src="https://github.com/user-attachments/assets/f1c82c46-5d6a-4352-a135-42847f225258" />
+<img width="1423" height="767" alt="autotsa3" src="https://github.com/user-attachments/assets/79c81dcc-6312-4a33-bc62-bf3debe7b2c9" />
+
+
 
 ## Quickstart (CLI)
 ```bash
