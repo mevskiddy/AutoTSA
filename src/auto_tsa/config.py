@@ -20,6 +20,7 @@ class AutoTSAConfig:
     exogenous_cols: Optional[List[str]] = None
     exogenous_lags: Sequence[int] = field(default_factory=lambda: (0, 1))
     auto_seasonality: bool = True
+    seasonal_period: Optional[int] = None
     holdout_fraction: float = 0.2
     rolling_splits: int = 3
     min_train_fraction: float = 0.5

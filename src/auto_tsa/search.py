@@ -86,7 +86,9 @@ def _seasonal_period_from_freq(freq: str | None) -> int:
     return 1
 
 
-def _seasonal_period_candidates(freq: str | None) -> List[int]:
+def _seasonal_period_candidates(freq: str | None, override: Optional[int] = None) -> List[int]:
+    if override is not None and override > 0:
+        return [int(override)]
     base = _seasonal_period_from_freq(freq)
     candidates = {1, base}
     if not freq:
@@ -103,6 +105,23 @@ def _seasonal_period_candidates(freq: str | None) -> List[int]:
     elif freq.startswith("Q"):
         candidates.update([2, 4])
     return sorted([c for c in candidates if c > 0])
+
+
+def _manual_seasonal_hints(period: Optional[int], max_len: int) -> Tuple[List[int], List[int]]:
+    """
+    Derive lag/window hints from a user-specified seasonal period.
+    """
+    if period is None:
+        return [], []
+    try:
+        p = int(period)
+    except (TypeError, ValueError):
+        return [], []
+    if p <= 0:
+        return [], []
+    multiples = [p, p * 2, p * 3]
+    vals = [v for v in multiples if v < max_len]
+    return vals, vals
 
 
 def _garch_forecast(
@@ -542,7 +561,7 @@ class AutoTSA:
         if sm is None:
             raise RuntimeError("statsmodels not available for SARIMA")
         metric = get_metric(metric_name)
-        seasonals = _seasonal_period_candidates(self.frame.freq)
+        seasonals = _seasonal_period_candidates(self.frame.freq, self.config.seasonal_period)
         self._log(f"  SARIMA trial params: {params} seasons={seasonals}")
         best_mean = float("inf")
         best_period = None
@@ -751,9 +770,15 @@ class AutoTSA:
 
     def fit(self, df) -> "AutoTSA":
         data = self.frame.load(df)
-        if self.config.auto_seasonality:
+        max_len = len(data)
+        manual_lags, manual_windows = _manual_seasonal_hints(self.config.seasonal_period, max_len)
+        if manual_lags or manual_windows:
+            lags_hint, windows_hint = manual_lags, manual_windows
+        elif self.config.auto_seasonality:
             lags_hint, windows_hint = _auto_seasonal_hints(self.frame.freq)
-            max_len = len(data)
+        else:
+            lags_hint, windows_hint = [], []
+        if lags_hint or windows_hint:
             self.config.lags = tuple(
                 sorted(set([l for l in list(self.config.lags) + lags_hint if l < max_len]))
             )
@@ -814,7 +839,7 @@ class AutoTSA:
             self._log(f"Best model {self.best_model_name} score={best_score:.4f} holdout={self.holdout_score:.4f}")
             return self
         if best_spec.kind == "sarima":
-            s = _seasonal_period_from_freq(self.frame.freq)
+            s = self.config.seasonal_period or _seasonal_period_from_freq(self.frame.freq)
             order = (
                 best_result["params"]["p"],
                 best_result["params"]["d"],

@@ -142,6 +142,7 @@ def _train_model(
     timestamp_col: str,
     target_col: str,
     freq: str | None,
+    seasonal_period: int | None,
     exog_cols: list[str],
     models: list[str] | None,
     use_optuna: bool,
@@ -153,6 +154,7 @@ def _train_model(
         timestamp_col=timestamp_col,
         target_col=target_col,
         freq=freq or None,
+        seasonal_period=seasonal_period,
         exogenous_cols=exog_cols or None,
         lags=(1, 2, 3, 6, 12),
         windows=(3, 6, 12),
@@ -437,6 +439,13 @@ def main():
         st.subheader("Upload & columns")
         upload = st.file_uploader("Upload CSV", type=["csv"])
         freq_input = st.text_input("Frequency (optional)", placeholder="e.g. D, H, MS")
+        seasonal_period_input = st.number_input(
+            "Seasonal period (optional)",
+            min_value=0,
+            max_value=10000,
+            value=0,
+            help="Force a fixed seasonal period for SARIMA and lag/window hints (e.g., 7 or 12).",
+        )
         st.markdown("---")
         st.subheader("Forecast controls")
         step_input = st.slider("Prediction steps", 1, 90, 12, help="How many steps into the future to forecast.")
@@ -580,11 +589,13 @@ def main():
                 st.info("Optuna is disabled when TFT is selected; running random search instead.")
                 use_optuna = False
             with st.spinner("Training AutoTSA and generating forecast..."):
+                seasonal_period = int(seasonal_period_input) if seasonal_period_input > 0 else None
                 automl = _train_model(
                     clean_df,
                     ts_col,
                     tgt_col,
                     freq_input or None,
+                    seasonal_period,
                     exog_cols,
                     models_selected,
                     use_optuna,
@@ -606,6 +617,7 @@ def main():
                 "use_optuna": use_optuna,
                 "optuna_trials": optuna_trials,
                 "freq": freq_input or automl.frame.freq,
+                "seasonal_period": seasonal_period,
                 "forecast_frame": forecast_frame,
                 "history_window": hist_window,
                 "steps": step_input,

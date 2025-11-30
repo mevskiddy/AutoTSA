@@ -21,6 +21,7 @@ def parse_args(argv):
     parser.add_argument("--timestamp", default=None, help="Timestamp column name (optional, inferred if omitted).")
     parser.add_argument("--target", required=True, help="Target column name.")
     parser.add_argument("--freq", default=None, help="Pandas frequency string.")
+    parser.add_argument("--seasonal-period", type=int, default=None, help="Fixed seasonal period to enforce (e.g., 7, 12).")
     parser.add_argument("--models", default=None, help="Comma-separated model list.")
     parser.add_argument("--lags", default="1,2,3,6,12,24", help="Comma-separated lags.")
     parser.add_argument("--windows", default="3,6,12,24", help="Comma-separated rolling windows.")
@@ -59,6 +60,7 @@ def main(argv=None):
         timestamp_col=args.timestamp,
         target_col=args.target,
         freq=args.freq,
+        seasonal_period=args.seasonal_period,
         lags=lags,
         windows=windows,
         exogenous_cols=exog_cols,
